@@ -38,7 +38,8 @@
     function drawGraph(data) {
       svg.selectAll('*').remove();
 
-      const categories = Array.from({length: 7}, (_, i) => `カテゴリ${i+1}`);
+      const columns = data.columns || Object.keys(data[0]);
+      const categories = columns.filter(c => c.includes('カテゴリ'));
       const counts = {};
       const linksMap = {};
       categories.forEach(c => counts[c] = 0);
