@@ -14,7 +14,7 @@
   <h1>CSVファイルアップロード</h1>
   <input type="file" id="csvInput" accept=".csv" />
   <div id="fileName"></div>
-  <svg id="chart" width="800" height="600"></svg>
+  <svg id="chart" width="1200" height="800"></svg>
   <script>
     const input = document.getElementById('csvInput');
     const fileNameDisplay = document.getElementById('fileName');
@@ -38,7 +38,7 @@
     function drawGraph(data) {
       svg.selectAll('*').remove();
 
-      const categories = Object.keys(data[0]).filter(k => k.includes('カテゴリ'));
+      const categories = Array.from({length: 7}, (_, i) => `カテゴリ${i+1}`);
       const counts = {};
       const linksMap = {};
       categories.forEach(c => counts[c] = 0);
