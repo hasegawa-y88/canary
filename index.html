@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>CSV Upload</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2em; }
+    #fileName { margin-top: 1em; }
+  </style>
+</head>
+<body>
+  <h1>CSVファイルアップロード</h1>
+  <input type="file" id="csvInput" accept=".csv">
+  <div id="fileName"></div>
+
+  <script>
+    const input = document.getElementById('csvInput');
+    const fileNameDisplay = document.getElementById('fileName');
+
+    input.addEventListener('change', () => {
+      const file = input.files[0];
+      if (file) {
+        fileNameDisplay.textContent = `選択されたファイル: ${file.name}`;
+      } else {
+        fileNameDisplay.textContent = '';
+      }
+    });
+  </script>
+</body>
+</html>
