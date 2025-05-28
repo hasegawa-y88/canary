@@ -2,29 +2,137 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>CSV Upload</title>
+  <title>CSV Visualization</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 2em; }
     #fileName { margin-top: 1em; }
+    svg { border: 1px solid #ccc; margin-top: 1em; }
   </style>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 <body>
   <h1>CSVファイルアップロード</h1>
-  <input type="file" id="csvInput" accept=".csv">
+  <input type="file" id="csvInput" accept=".csv" />
   <div id="fileName"></div>
-
+  <svg id="chart" width="800" height="600"></svg>
   <script>
     const input = document.getElementById('csvInput');
     const fileNameDisplay = document.getElementById('fileName');
+    const svg = d3.select('#chart');
+    const width = +svg.attr('width');
+    const height = +svg.attr('height');
 
     input.addEventListener('change', () => {
       const file = input.files[0];
-      if (file) {
-        fileNameDisplay.textContent = `選択されたファイル: ${file.name}`;
-      } else {
-        fileNameDisplay.textContent = '';
-      }
+      if (!file) return;
+      fileNameDisplay.textContent = `選択されたファイル: ${file.name}`;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target.result;
+        const rows = d3.csvParse(text);
+        drawGraph(rows);
+      };
+      reader.readAsText(file);
     });
+
+    function drawGraph(data) {
+      svg.selectAll('*').remove();
+
+      const categories = Object.keys(data[0]).filter(k => k.includes('カテゴリ'));
+      const counts = {};
+      const linksMap = {};
+      categories.forEach(c => counts[c] = 0);
+
+      data.forEach(row => {
+        const active = [];
+        categories.forEach(c => {
+          if (Number(row[c]) === 1) {
+            counts[c] += 1;
+            active.push(c);
+          }
+        });
+        for (let i = 0; i < active.length; i++) {
+          for (let j = i + 1; j < active.length; j++) {
+            const key = active[i] + '|' + active[j];
+            linksMap[key] = (linksMap[key] || 0) + 1;
+          }
+        }
+      });
+
+      const nodes = categories.map(c => ({id: c, count: counts[c]}));
+      const links = Object.entries(linksMap).map(([k, v]) => {
+        const [a, b] = k.split('|');
+        return {source: a, target: b, value: v};
+      });
+
+      const simulation = d3.forceSimulation(nodes)
+        .force('link', d3.forceLink(links).id(d => d.id).distance(d => 200 - d.value * 20))
+        .force('charge', d3.forceManyBody().strength(-200))
+        .force('center', d3.forceCenter(width / 2, height / 2));
+
+      const link = svg.append('g')
+        .attr('stroke', '#999')
+        .attr('stroke-opacity', 0.6)
+        .selectAll('line')
+        .data(links)
+        .join('line')
+        .attr('stroke-width', d => Math.sqrt(d.value));
+
+      const node = svg.append('g')
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 1.5)
+        .selectAll('circle')
+        .data(nodes)
+        .join('circle')
+        .attr('r', d => 10 + d.count * 3)
+        .attr('fill', '#69b3a2')
+        .call(drag(simulation));
+
+      const label = svg.append('g')
+        .selectAll('text')
+        .data(nodes)
+        .join('text')
+        .attr('text-anchor', 'middle')
+        .attr('dy', -10)
+        .text(d => d.id + '(' + d.count + ')');
+
+      simulation.on('tick', () => {
+        link
+          .attr('x1', d => d.source.x)
+          .attr('y1', d => d.source.y)
+          .attr('x2', d => d.target.x)
+          .attr('y2', d => d.target.y);
+
+        node
+          .attr('cx', d => d.x)
+          .attr('cy', d => d.y);
+
+        label
+          .attr('x', d => d.x)
+          .attr('y', d => d.y);
+      });
+
+      function drag(sim) {
+        function dragstarted(event, d) {
+          if (!event.active) sim.alphaTarget(0.3).restart();
+          d.fx = d.x;
+          d.fy = d.y;
+        }
+        function dragged(event, d) {
+          d.fx = event.x;
+          d.fy = event.y;
+        }
+        function dragended(event, d) {
+          if (!event.active) sim.alphaTarget(0);
+          d.fx = null;
+          d.fy = null;
+        }
+        return d3.drag()
+          .on('start', dragstarted)
+          .on('drag', dragged)
+          .on('end', dragended);
+      }
+    }
   </script>
 </body>
 </html>
