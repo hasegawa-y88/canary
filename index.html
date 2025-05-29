@@ -40,6 +40,21 @@
     text {
       pointer-events: none;
     }
+    #details {
+      margin-top: 1em;
+      border-top: 1px solid #ccc;
+      padding-top: 1em;
+      font-size: 14px;
+    }
+    #details table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    #details th, #details td {
+      border: 1px solid #ddd;
+      padding: 6px 10px;
+      text-align: left;
+    }
   </style>
   <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
@@ -53,6 +68,7 @@
     </div>
     <svg id="chart"></svg>
   </div>
+  <div id="details"></div>
   <script>
     const input = document.getElementById('csvInput');
     const backButton = document.getElementById('backButton');
@@ -64,7 +80,7 @@
 
     const zoom = d3.zoom().scaleExtent([0.1, 10]).on("zoom", zoomed);
     const container = svg.append("g");
-    svg.call(zoom).on("wheel.zoom", null); // ホイールズーム無効化
+    svg.call(zoom).on("wheel.zoom", null);
 
     function zoomed({transform}) {
       container.attr("transform", transform);
@@ -93,6 +109,7 @@
     function drawMainCategoryGraph(data) {
       container.selectAll('*').remove();
       backButton.style.display = 'none';
+      document.getElementById('details').innerHTML = "";
 
       const columns = data.columns || Object.keys(data[0]);
       const mainCategories = columns.slice(2).filter(c => !c.includes('サブカテゴリ') && data.some(row => row[c] === "1" || row[c] === 1));
@@ -129,6 +146,7 @@
     function onMainCategoryClick(category) {
       container.selectAll('*').remove();
       backButton.style.display = 'inline-block';
+      document.getElementById('details').innerHTML = "";
 
       const subCategoryCols = originalData.columns.filter(c => c.startsWith(category + "_サブカテゴリ"));
       const counts = {};
@@ -152,6 +170,38 @@
       });
 
       renderGraph(nodes, links);
+    }
+
+    function showDetails(subcat) {
+      const detailDiv = document.getElementById('details');
+      const subcatCols = originalData.columns.filter(c => c.includes("サブカテゴリ"));
+
+      const matchCol = originalData.columns.find(c => c.includes("サブカテゴリ") && originalData.some(row => row[c]?.trim() === subcat));
+      const mainCat = matchCol ? matchCol.split("_")[0] : "カテゴリ不明";
+
+      const rows = originalData.filter(row =>
+        subcatCols.some(c => row[c] && row[c].trim() === subcat)
+      );
+
+      let html = `<h2 id="detailsHeader" style="font-size: 24px; margin-bottom: 0.2em;">${mainCat} - ${subcat}</h2>`;
+      html += `<h3 style="margin-top: 0;">該当する相談</h3>`;
+
+      if (rows.length === 0) {
+        html += "<p>該当なし</p>";
+      } else {
+        html += `<table><thead><tr><th>相談番号</th><th>相談内容</th></tr></thead><tbody>`;
+        for (const row of rows) {
+          html += `<tr><td>${row[originalData.columns[0]]}</td><td>${row[originalData.columns[1]]}</td></tr>`;
+        }
+        html += `</tbody></table>`;
+      }
+
+      detailDiv.innerHTML = html;
+
+      const header = document.getElementById('detailsHeader');
+      if (header) {
+        header.scrollIntoView({ behavior: 'smooth' });
+      }
     }
 
     function renderGraph(nodes, links, onClickHandler) {
@@ -186,7 +236,11 @@
         .attr('fill', d => color(d.id))
         .call(drag(simulation))
         .on('click', d => {
-          if (onClickHandler) onClickHandler(d.target.__data__.id);
+          if (onClickHandler) {
+            onClickHandler(d.target.__data__.id);
+          } else {
+            showDetails(d.target.__data__.id);
+          }
         })
         .on('mouseover', function(event, d) {
           d3.select(this).classed('highlight-node', true);
@@ -230,24 +284,21 @@
     });
 
     function drag(sim) {
-      function dragstarted(event, d) {
-        if (!event.active) sim.alphaTarget(0.3).restart();
-        d.fx = d.x;
-        d.fy = d.y;
-      }
-      function dragged(event, d) {
-        d.fx = event.x;
-        d.fy = event.y;
-      }
-      function dragended(event, d) {
-        if (!event.active) sim.alphaTarget(0);
-        d.fx = null;
-        d.fy = null;
-      }
       return d3.drag()
-        .on('start', dragstarted)
-        .on('drag', dragged)
-        .on('end', dragended);
+        .on('start', (event, d) => {
+          if (!event.active) sim.alphaTarget(0.3).restart();
+          d.fx = d.x;
+          d.fy = d.y;
+        })
+        .on('drag', (event, d) => {
+          d.fx = event.x;
+          d.fy = event.y;
+        })
+        .on('end', (event, d) => {
+          if (!event.active) sim.alphaTarget(0);
+          d.fx = null;
+          d.fy = null;
+        });
     }
   </script>
 </body>
