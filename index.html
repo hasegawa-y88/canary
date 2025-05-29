@@ -32,14 +32,14 @@
         const rows = d3.csvParse(text);
         drawGraph(rows);
       };
-      reader.readAsText(file);
+      reader.readAsText(file, "Shift_JIS"); // 文字化け対策
     });
 
     function drawGraph(data) {
       svg.selectAll('*').remove();
 
       const columns = data.columns || Object.keys(data[0]);
-      const categories = columns.filter(c => c.includes('カテゴリ'));
+      const categories = columns.slice(2).filter(c => !c.includes('サブカテゴリ') && data.some(row => row[c] !== "")); //  「3列目以降」で「サブカテゴリ」を含まない列を抽出してメインカテゴリとして使用
       const counts = {};
       const linksMap = {};
       categories.forEach(c => counts[c] = 0);
@@ -66,9 +66,11 @@
         return {source: a, target: b, value: v};
       });
 
+      const color = d3.scaleOrdinal(d3.schemeCategory10);
+
       const simulation = d3.forceSimulation(nodes)
-        .force('link', d3.forceLink(links).id(d => d.id).distance(d => 200 - d.value * 20))
-        .force('charge', d3.forceManyBody().strength(-200))
+        .force('link', d3.forceLink(links).id(d => d.id).distance(d => 500 - d.value * 20)) // ← 距離広め
+        .force('charge', d3.forceManyBody().strength(-600))                                // ← 反発力強め
         .force('center', d3.forceCenter(width / 2, height / 2));
 
       const link = svg.append('g')
@@ -77,7 +79,7 @@
         .selectAll('line')
         .data(links)
         .join('line')
-        .attr('stroke-width', d => Math.sqrt(d.value));
+        .attr('stroke-width', d => d.value * 2); // ← 共起回数が多いほど太く
 
       const node = svg.append('g')
         .attr('stroke', '#fff')
@@ -86,7 +88,7 @@
         .data(nodes)
         .join('circle')
         .attr('r', d => 10 + d.count * 3)
-        .attr('fill', '#69b3a2')
+        .attr('fill', d => color(d.id)) // ← カテゴリ別に色分け
         .call(drag(simulation));
 
       const label = svg.append('g')
