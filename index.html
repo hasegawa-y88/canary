@@ -5,9 +5,14 @@
   <title>CSV Visualization</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 2em; }
-    #fileName, #backButton { margin-top: 1em; }
+    #fileName, .controls { margin-top: 1em; }
     svg { border: 1px solid #ccc; display: block; }
-    button { display: none; margin-top: 1em; padding: 0.5em 1em; font-size: 16px; }
+    .controls button {
+      display: inline-block;
+      margin-right: 0.5em;
+      padding: 0.5em 1em;
+      font-size: 16px;
+    }
   </style>
   <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
@@ -15,16 +20,32 @@
   <h1>CSVファイルアップロード</h1>
   <input type="file" id="csvInput" accept=".csv" />
   <div id="fileName"></div>
-  <button id="backButton">戻る</button>
+  <div class="controls">
+    <button id="backButton" style="display:none;">戻る</button>
+    <button id="zoomIn">＋</button>
+    <button id="zoomOut">−</button>
+  </div>
   <svg id="chart" style="width: 100%; height: 100vh;"></svg>
   <script>
     const input = document.getElementById('csvInput');
     const fileNameDisplay = document.getElementById('fileName');
     const backButton = document.getElementById('backButton');
+    const zoomInBtn = document.getElementById('zoomIn');
+    const zoomOutBtn = document.getElementById('zoomOut');
     const svg = d3.select('#chart');
     const width = window.innerWidth;
     const height = window.innerHeight;
     let originalData = [];
+    const zoom = d3.zoom().scaleExtent([0.1, 10]).on("zoom", zoomed);
+    const container = svg.append("g");
+    svg.call(zoom).on("wheel.zoom", null); 
+
+    function zoomed({transform}) {
+      container.attr("transform", transform);
+    }
+
+    zoomInBtn.onclick = () => svg.transition().call(zoom.scaleBy, 1.2);
+    zoomOutBtn.onclick = () => svg.transition().call(zoom.scaleBy, 0.8);
 
     input.addEventListener('change', () => {
       const file = input.files[0];
@@ -40,7 +61,7 @@
     });
 
     function drawMainCategoryGraph(data) {
-      svg.selectAll('*').remove();
+      container.selectAll('*').remove();
       backButton.style.display = 'none';
 
       const columns = data.columns || Object.keys(data[0]);
@@ -76,7 +97,7 @@
     }
 
     function onMainCategoryClick(category) {
-      svg.selectAll('*').remove();
+      container.selectAll('*').remove();
       backButton.style.display = 'inline-block';
 
       const subCategoryCols = originalData.columns.filter(c => c.startsWith(category + "_サブカテゴリ"));
@@ -111,7 +132,7 @@
         .force('charge', d3.forceManyBody().strength(-600))
         .force('center', d3.forceCenter(width / 2, height / 2));
 
-      const link = svg.append('g')
+      const link = container.append('g')
         .attr('stroke', '#999')
         .attr('stroke-opacity', 0.6)
         .selectAll('line')
@@ -119,7 +140,7 @@
         .join('line')
         .attr('stroke-width', d => d.value * 2);
 
-      const node = svg.append('g')
+      const node = container.append('g')
         .attr('stroke', '#fff')
         .attr('stroke-width', 1.5)
         .selectAll('circle')
@@ -132,7 +153,7 @@
           if (onClickHandler) onClickHandler(d.target.__data__.id);
         });
 
-      const label = svg.append('g')
+      const label = container.append('g')
         .selectAll('text')
         .data(nodes)
         .join('text')
