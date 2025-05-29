@@ -17,7 +17,6 @@
   <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
 <body>
-  <h1>CSVファイルアップロード</h1>
   <input type="file" id="csvInput" accept=".csv" />
   <div id="fileName"></div>
   <div class="controls">
@@ -25,7 +24,7 @@
     <button id="zoomIn">＋</button>
     <button id="zoomOut">−</button>
   </div>
-  <svg id="chart" style="width: 100%; height: 100vh;"></svg>
+  <svg id="chart" style="width: 100%; height: calc(100vh - 150px);"></svg>
   <script>
     const input = document.getElementById('csvInput');
     const fileNameDisplay = document.getElementById('fileName');
@@ -135,7 +134,7 @@
       const wScale = d3.scaleLinear().domain([0, 1]).range([1, 10]);
 
       const simulation = d3.forceSimulation(nodes)
-        .force('link', d3.forceLink(links).id(d => d.id).distance(d => 1500 - d.value * 60))
+        .force('link', d3.forceLink(links).id(d => d.id).distance(d => 1200 - d.value * 40))
         .force('charge', d3.forceManyBody().strength(-600))
         .force('center', d3.forceCenter(width / 2, height / 2));
 
