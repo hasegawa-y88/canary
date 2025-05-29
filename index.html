@@ -5,8 +5,9 @@
   <title>CSV Visualization</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 2em; }
-    #fileName { margin-top: 1em; }
+    #fileName, #backButton { margin-top: 1em; }
     svg { border: 1px solid #ccc; margin-top: 1em; }
+    button { display: none; margin-top: 1em; padding: 0.5em 1em; font-size: 16px; }
   </style>
   <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
@@ -14,13 +15,16 @@
   <h1>CSVファイルアップロード</h1>
   <input type="file" id="csvInput" accept=".csv" />
   <div id="fileName"></div>
+  <button id="backButton">戻る</button>
   <svg id="chart" width="1200" height="800"></svg>
   <script>
     const input = document.getElementById('csvInput');
     const fileNameDisplay = document.getElementById('fileName');
+    const backButton = document.getElementById('backButton');
     const svg = d3.select('#chart');
     const width = +svg.attr('width');
     const height = +svg.attr('height');
+    let originalData = [];
 
     input.addEventListener('change', () => {
       const file = input.files[0];
@@ -29,25 +33,27 @@
       const reader = new FileReader();
       reader.onload = (e) => {
         const text = e.target.result;
-        const rows = d3.csvParse(text);
-        drawGraph(rows);
+        originalData = d3.csvParse(text);
+        drawMainCategoryGraph(originalData);
       };
-      reader.readAsText(file, "Shift_JIS"); // 文字化け対策
+      reader.readAsText(file, "Shift_JIS");
     });
 
-    function drawGraph(data) {
+    function drawMainCategoryGraph(data) {
       svg.selectAll('*').remove();
+      backButton.style.display = 'none';
 
       const columns = data.columns || Object.keys(data[0]);
-      const categories = columns.slice(2).filter(c => !c.includes('サブカテゴリ') && data.some(row => row[c] !== "")); //  「3列目以降」で「サブカテゴリ」を含まない列を抽出してメインカテゴリとして使用
+      const mainCategories = columns.slice(2).filter(c => !c.includes('サブカテゴリ') && data.some(row => row[c] === "1" || row[c] === 1));
+
       const counts = {};
       const linksMap = {};
-      categories.forEach(c => counts[c] = 0);
+      mainCategories.forEach(c => counts[c] = 0);
 
       data.forEach(row => {
         const active = [];
-        categories.forEach(c => {
-          if (Number(row[c]) === 1) {
+        mainCategories.forEach(c => {
+          if (row[c] === "1" || row[c] === 1) {
             counts[c] += 1;
             active.push(c);
           }
@@ -60,17 +66,49 @@
         }
       });
 
-      const nodes = categories.map(c => ({id: c, count: counts[c]}));
+      const nodes = mainCategories.map(c => ({id: c, count: counts[c]}));
       const links = Object.entries(linksMap).map(([k, v]) => {
         const [a, b] = k.split('|');
         return {source: a, target: b, value: v};
       });
 
+      renderGraph(nodes, links, onMainCategoryClick);
+    }
+
+    function onMainCategoryClick(category) {
+      svg.selectAll('*').remove();
+      backButton.style.display = 'inline-block';
+
+      const subCategoryCols = originalData.columns.filter(c => c.startsWith(category + "_サブカテゴリ"));
+      const counts = {};
+      const linksMap = {};
+
+      originalData.forEach(row => {
+        const subcats = subCategoryCols.map(c => row[c]).filter(v => v && v.trim() !== "");
+        subcats.forEach(c => { if (!counts[c]) counts[c] = 0; counts[c]++; });
+        for (let i = 0; i < subcats.length; i++) {
+          for (let j = i + 1; j < subcats.length; j++) {
+            const key = subcats[i] + '|' + subcats[j];
+            linksMap[key] = (linksMap[key] || 0) + 1;
+          }
+        }
+      });
+
+      const nodes = Object.keys(counts).map(id => ({id, count: counts[id]}));
+      const links = Object.entries(linksMap).map(([k, v]) => {
+        const [a, b] = k.split('|');
+        return {source: a, target: b, value: v};
+      });
+
+      renderGraph(nodes, links);
+    }
+
+    function renderGraph(nodes, links, onClickHandler) {
       const color = d3.scaleOrdinal(d3.schemeCategory10);
 
       const simulation = d3.forceSimulation(nodes)
-        .force('link', d3.forceLink(links).id(d => d.id).distance(d => 500 - d.value * 20)) // ← 距離広め
-        .force('charge', d3.forceManyBody().strength(-600))                                // ← 反発力強め
+        .force('link', d3.forceLink(links).id(d => d.id).distance(d => 300 - d.value * 20))
+        .force('charge', d3.forceManyBody().strength(-400))
         .force('center', d3.forceCenter(width / 2, height / 2));
 
       const link = svg.append('g')
@@ -79,7 +117,7 @@
         .selectAll('line')
         .data(links)
         .join('line')
-        .attr('stroke-width', d => d.value * 2); // ← 共起回数が多いほど太く
+        .attr('stroke-width', d => d.value * 2);
 
       const node = svg.append('g')
         .attr('stroke', '#fff')
@@ -88,8 +126,11 @@
         .data(nodes)
         .join('circle')
         .attr('r', d => 10 + d.count * 3)
-        .attr('fill', d => color(d.id)) // ← カテゴリ別に色分け
-        .call(drag(simulation));
+        .attr('fill', d => color(d.id))
+        .call(drag(simulation))
+        .on('click', d => {
+          if (onClickHandler) onClickHandler(d.target.__data__.id);
+        });
 
       const label = svg.append('g')
         .selectAll('text')
@@ -114,27 +155,31 @@
           .attr('x', d => d.x)
           .attr('y', d => d.y);
       });
+    }
 
-      function drag(sim) {
-        function dragstarted(event, d) {
-          if (!event.active) sim.alphaTarget(0.3).restart();
-          d.fx = d.x;
-          d.fy = d.y;
-        }
-        function dragged(event, d) {
-          d.fx = event.x;
-          d.fy = event.y;
-        }
-        function dragended(event, d) {
-          if (!event.active) sim.alphaTarget(0);
-          d.fx = null;
-          d.fy = null;
-        }
-        return d3.drag()
-          .on('start', dragstarted)
-          .on('drag', dragged)
-          .on('end', dragended);
+    backButton.addEventListener('click', () => {
+      drawMainCategoryGraph(originalData);
+    });
+
+    function drag(sim) {
+      function dragstarted(event, d) {
+        if (!event.active) sim.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
       }
+      function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+      }
+      function dragended(event, d) {
+        if (!event.active) sim.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+      }
+      return d3.drag()
+        .on('start', dragstarted)
+        .on('drag', dragged)
+        .on('end', dragended);
     }
   </script>
 </body>
