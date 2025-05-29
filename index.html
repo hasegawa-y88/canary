@@ -13,6 +13,14 @@
       padding: 0.5em 1em;
       font-size: 16px;
     }
+    .highlight-node {
+      stroke: black;
+      stroke-width: 3px;
+    }
+    .highlight-link {
+      stroke: red !important;
+      stroke-opacity: 1 !important;
+    }
   </style>
   <script src="https://d3js.org/d3.v7.min.js"></script>
 </head>
@@ -126,10 +134,8 @@
 
     function renderGraph(nodes, links, onClickHandler) {
       const color = d3.scaleOrdinal(d3.schemeCategory10);
-
       const total = d3.sum(nodes, d => d.count);
       const rScale = d3.scaleLinear().domain([0, 1]).range([5, 300]);
-
       const maxLinkValue = d3.max(links, d => d.value);
       const wScale = d3.scaleLinear().domain([0, 1]).range([1, 10]);
 
@@ -157,6 +163,16 @@
         .call(drag(simulation))
         .on('click', d => {
           if (onClickHandler) onClickHandler(d.target.__data__.id);
+        })
+        .on('mouseover', function(event, d) {
+          d3.select(this).classed('highlight-node', true);
+          link.classed('highlight-link', l =>
+            l.source.id === d.id || l.target.id === d.id
+          );
+        })
+        .on('mouseout', function(event, d) {
+          d3.select(this).classed('highlight-node', false);
+          link.classed('highlight-link', false);
         });
 
       const label = container.append('g')
@@ -165,6 +181,7 @@
         .join('text')
         .attr('text-anchor', 'middle')
         .attr('dy', -10)
+        .style('font-size', '20px')  // ← フォントサイズ追加
         .text(d => d.id + '(' + d.count + ')');
 
       simulation.on('tick', () => {
