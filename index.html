@@ -64,7 +64,10 @@
         const text = e.target.result;
         originalData = d3.csvParse(text);
         drawMainCategoryGraph(originalData);
+        originalData = d3.csvParse(text);
+        drawMainCategoryGraph(originalData);
       };
+      reader.readAsText(file, "Shift_JIS");
       reader.readAsText(file, "Shift_JIS");
     });
 
@@ -75,12 +78,17 @@
       const columns = data.columns || Object.keys(data[0]);
       const mainCategories = columns.slice(2).filter(c => !c.includes('サブカテゴリ') && data.some(row => row[c] === "1" || row[c] === 1));
 
+      const mainCategories = columns.slice(2).filter(c => !c.includes('サブカテゴリ') && data.some(row => row[c] === "1" || row[c] === 1));
+
       const counts = {};
       const linksMap = {};
+      mainCategories.forEach(c => counts[c] = 0);
       mainCategories.forEach(c => counts[c] = 0);
 
       data.forEach(row => {
         const active = [];
+        mainCategories.forEach(c => {
+          if (row[c] === "1" || row[c] === 1) {
         mainCategories.forEach(c => {
           if (row[c] === "1" || row[c] === 1) {
             counts[c] += 1;
@@ -129,6 +137,10 @@
         return {source: a, target: b, value: v};
       });
 
+      renderGraph(nodes, links);
+    }
+
+    function renderGraph(nodes, links, onClickHandler) {
       renderGraph(nodes, links);
     }
 
